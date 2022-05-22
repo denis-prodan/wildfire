@@ -62,82 +62,80 @@ pub mod quad_tree {
     }
 
     impl BoundingBox {
-        pub fn lon_center(self) -> f32 {
+        pub fn lon_center(&self) -> f32 {
              self.lon_min + self.lon_size() / 2.0
         }
 
-        pub fn lat_center(self) -> f32 {
+        pub fn lat_center(&self) -> f32 {
              self.lat_min + self.lat_size() / 2.0
         }
 
-        pub fn lon_size(self) -> f32 {
+        pub fn lon_size(&self) -> f32 {
             self.lon_max - self.lon_min
         }
 
-        pub fn lat_size(self) -> f32 {
+        pub fn lat_size(&self) -> f32 {
             self.lat_max - self.lat_min
         }
     }
 
     impl<T:QuadTreeItem> QuadTree<T> {
 
-        pub fn add_item_to_tree<'a>(&mut self, item: &'a T) -> bool {
+        pub fn add_item_to_tree(&mut self, item: T) -> bool {
             if !item.belongs_to_quad_tree(self) {
                 return false
             }
 
             if self.max_depth <= 0 {
-                self.items.push(*item);
+                self.items.push(item);
                 return true
             }
             
             for quadrant_type in QuadrantType::get_quadrant_types() {
-                if !self.item_belongs_to_subquadrant(*item, quadrant_type){
+                if !self.item_belongs_to_subquadrant(&item, quadrant_type){
                     continue;
                 }
                 
                 let sub_quadrant = self.get_subquadrant(quadrant_type);
 
-                match sub_quadrant {
-                    None => {
-                        let quadrant_coordinates = self.get_quadrant_bounding_box(quadrant_type);
-                        let lon_size = quadrant_coordinates.lon_size() / 2.0;
-                        let lat_size = quadrant_coordinates.lat_size() / 2.0;
-                        let sub_quadrant = Option::from(Box::new(QuadTree{
-                            lon_center: quadrant_coordinates.lon_center(), 
-                            lat_center: quadrant_coordinates.lat_center(), 
-                            lon_quadrant_size: lon_size, 
-                            lat_quadrant_size: lat_size,
+                if let None = sub_quadrant {
+                    let quadrant_coordinates = self.get_quadrant_bounding_box(quadrant_type);
+                    let lon_size = quadrant_coordinates.lon_size() / 2.0;
+                    let lat_size = quadrant_coordinates.lat_size() / 2.0;
+                    let sub_quadrant = Option::from(Box::new(QuadTree{
+                        lon_center: quadrant_coordinates.lon_center(), 
+                        lat_center: quadrant_coordinates.lat_center(), 
+                        lon_quadrant_size: lon_size, 
+                        lat_quadrant_size: lat_size,
 
-                            items: Vec::new(),
+                        items: Vec::new(),
 
-                            left_bottom: Option::None,
-                            right_bottom: Option:: None,
-                            left_top: Option::None,
-                            right_top: Option::None,
+                        left_bottom: Option::None,
+                        right_bottom: Option:: None,
+                        left_top: Option::None,
+                        right_top: Option::None,
 
-                            lon_min: quadrant_coordinates.lon_center() - lon_size,
-                            lon_max: quadrant_coordinates.lon_center() + lon_size,
-                            lat_min: quadrant_coordinates.lat_center() - lat_size,
-                            lat_max: quadrant_coordinates.lat_center() + lat_size,
+                        lon_min: quadrant_coordinates.lon_center() - lon_size,
+                        lon_max: quadrant_coordinates.lon_center() + lon_size,
+                        lat_min: quadrant_coordinates.lat_center() - lat_size,
+                        lat_max: quadrant_coordinates.lat_center() + lat_size,
 
-                            max_depth: self.max_depth - 1 }));
-                        self.assign_subquadrant(sub_quadrant, *quadrant_type);
-                    },
-                    Some(boxed_subquadrant) => {
-                        match *boxed_subquadrant {
-                            subquadrant => subquadrant.add_item_to_tree(*item),
-                        };                        
-                    }
-                };            
-            }
+                        max_depth: self.max_depth - 1 }));
+                    self.assign_subquadrant(sub_quadrant, quadrant_type);
+                };
+
+                if let Some(boxed_subquadrant) = sub_quadrant {
+                    let sub_quadrant =  *boxed_subquadrant;
+                    return sub_quadrant.add_item_to_tree(item);
+                }           
+            };        
 
             // Item doesn't fit into any subquadrant, so we put it into this one
-            self.items.push(*item);
-            true
-        }
+            self.items.push(item);
+            return true;
+        }    
 
-        fn assign_subquadrant(mut self, subquadrant: Option<Box<QuadTree<T>>>, quadrant_type: QuadrantType) {
+        fn assign_subquadrant(&mut self, subquadrant: Option<Box<QuadTree<T>>>, quadrant_type: &QuadrantType) {
             match quadrant_type {
                 QuadrantType::LeftBottom => self.left_bottom = subquadrant,
                 QuadrantType::RightBottom => self.right_bottom = subquadrant,
@@ -146,16 +144,16 @@ pub mod quad_tree {
             }
         }
 
-        fn get_subquadrant(self, quadrant_type: &QuadrantType) -> Option<Box<QuadTree<T>>> {
+        fn get_subquadrant(&self, quadrant_type: &QuadrantType) -> &Option<Box<QuadTree<T>>> {
             match quadrant_type {
-                QuadrantType::LeftBottom => self.left_bottom,
-                QuadrantType::RightBottom => self.right_bottom,
-                QuadrantType::LeftTop => self.left_top,
-                QuadrantType::RightTop => self.right_top,
+                QuadrantType::LeftBottom => &self.left_bottom,
+                QuadrantType::RightBottom => &self.right_bottom,
+                QuadrantType::LeftTop => &self.left_top,
+                QuadrantType::RightTop => &self.right_top,
             }
         }
 
-        fn item_belongs_to_subquadrant(&self, item: T, quadrant_type: &QuadrantType) -> bool {
+        fn item_belongs_to_subquadrant(&self, item: &T, quadrant_type: &QuadrantType) -> bool {
             let b_box = self.get_quadrant_bounding_box(quadrant_type);
             
             item.belongs_to_area(b_box.lon_min, b_box.lon_max, b_box.lat_min, b_box.lat_max)
