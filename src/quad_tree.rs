@@ -100,9 +100,10 @@ pub mod quad_tree {
 
                 if let None = sub_quadrant {
                     let quadrant_coordinates = self.get_quadrant_bounding_box(quadrant_type);
+                    
                     let lon_size = quadrant_coordinates.lon_size() / 2.0;
                     let lat_size = quadrant_coordinates.lat_size() / 2.0;
-                    let sub_quadrant = Option::from(Box::new(QuadTree{
+                    let sub_quadrant = QuadTree::<T>{
                         lon_center: quadrant_coordinates.lon_center(), 
                         lat_center: quadrant_coordinates.lat_center(), 
                         lon_quadrant_size: lon_size, 
@@ -120,14 +121,16 @@ pub mod quad_tree {
                         lat_min: quadrant_coordinates.lat_center() - lat_size,
                         lat_max: quadrant_coordinates.lat_center() + lat_size,
 
-                        max_depth: self.max_depth - 1 }));
+                        max_depth: self.max_depth - 1 };
+                    
                     self.assign_subquadrant(sub_quadrant, quadrant_type);
                 };
-
+                
+                let sub_quadrant = self.get_subquadrant(quadrant_type).as_mut();
                 if let Some(boxed_subquadrant) = sub_quadrant {
-                    let sub_quadrant =  *boxed_subquadrant;
-                    return sub_quadrant.add_item_to_tree(item);
-                }           
+                    let sub_quadrant =  &mut (*boxed_subquadrant);
+                    return (*sub_quadrant).add_item_to_tree(item);
+                }
             };        
 
             // Item doesn't fit into any subquadrant, so we put it into this one
@@ -135,21 +138,21 @@ pub mod quad_tree {
             return true;
         }    
 
-        fn assign_subquadrant(&mut self, subquadrant: Option<Box<QuadTree<T>>>, quadrant_type: &QuadrantType) {
+        fn assign_subquadrant(&mut self, subquadrant: QuadTree<T>, quadrant_type: &QuadrantType) {
             match quadrant_type {
-                QuadrantType::LeftBottom => self.left_bottom = subquadrant,
-                QuadrantType::RightBottom => self.right_bottom = subquadrant,
-                QuadrantType::LeftTop => self.left_top = subquadrant,
-                QuadrantType::RightTop => self.right_top = subquadrant,
+                QuadrantType::LeftBottom => self.left_bottom = Option::from(Box::new(subquadrant)),
+                QuadrantType::RightBottom => self.right_bottom = Option::from(Box::new(subquadrant)),
+                QuadrantType::LeftTop => self.left_top = Option::from(Box::new(subquadrant)),
+                QuadrantType::RightTop => self.right_top = Option::from(Box::new(subquadrant)),
             }
         }
 
-        fn get_subquadrant(&self, quadrant_type: &QuadrantType) -> &Option<Box<QuadTree<T>>> {
+        fn get_subquadrant(&mut self, quadrant_type: &QuadrantType) -> &mut Option<Box<QuadTree<T>>> {
             match quadrant_type {
-                QuadrantType::LeftBottom => &self.left_bottom,
-                QuadrantType::RightBottom => &self.right_bottom,
-                QuadrantType::LeftTop => &self.left_top,
-                QuadrantType::RightTop => &self.right_top,
+                QuadrantType::LeftBottom => &mut self.left_bottom,
+                QuadrantType::RightBottom => &mut self.right_bottom,
+                QuadrantType::LeftTop => &mut self.left_top,
+                QuadrantType::RightTop => &mut self.right_top,
             }
         }
 
