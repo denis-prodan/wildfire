@@ -1,6 +1,7 @@
+
 pub mod quad_tree {
 
-    use core::slice::Iter;
+use core::slice::Iter;
 
     pub struct QuadTree<T: QuadTreeItem> {
         lon_center: f32,
@@ -50,7 +51,7 @@ pub mod quad_tree {
             let lon = self.get_lon();
             
             return lat >= min_lat && lat <= max_lat
-            && lon >= min_lon && lon <= max_lon;      
+                && lon >= min_lon && lon <= max_lon;      
         }
     }
 
@@ -79,7 +80,32 @@ pub mod quad_tree {
         }
     }
 
-    impl<T:QuadTreeItem> QuadTree<T> {
+    impl<'a, T:QuadTreeItem> QuadTree<T> {
+
+        pub fn get_related_items<K:QuadTreeItem>(&'a self, search_item: &K) -> Vec<&T> 
+            where T : QuadTreeItem  {
+            let mut result: Vec<&T> = Vec::new();
+
+            if !search_item.belongs_to_area(self.lon_min, self.lon_max, self.lat_min, self.lat_max)
+            {
+                return result;
+            }
+            
+            for item in self.items.iter() {
+                result.push(&item);
+            }
+
+            for subquadrant_type in QuadrantType::get_quadrant_types() {
+                let sub_quadrant = self.get_subquadrant(subquadrant_type);
+                if let Some(sub_q) = sub_quadrant {
+                    for item in sub_q.get_related_items(search_item) {
+                        result.push(item);
+                    }
+                }                
+            }
+
+            return result;
+        }
 
         pub fn add_item_to_tree(&mut self, item: T) -> bool {
             if !item.belongs_to_quad_tree(self) {
@@ -126,10 +152,10 @@ pub mod quad_tree {
                     self.assign_subquadrant(sub_quadrant, quadrant_type);
                 };
                 
-                let sub_quadrant = self.get_subquadrant(quadrant_type).as_mut();
+                let sub_quadrant = self.get_subquadrant_mut(quadrant_type).as_mut();
                 if let Some(boxed_subquadrant) = sub_quadrant {
-                    let sub_quadrant =  &mut (*boxed_subquadrant);
-                    return (*sub_quadrant).add_item_to_tree(item);
+                    let sub_quadrant =  boxed_subquadrant.as_mut();
+                    return sub_quadrant.add_item_to_tree(item);
                 }
             };        
 
@@ -147,12 +173,21 @@ pub mod quad_tree {
             }
         }
 
-        fn get_subquadrant(&mut self, quadrant_type: &QuadrantType) -> &mut Option<Box<QuadTree<T>>> {
+        fn get_subquadrant_mut(&mut self, quadrant_type: &QuadrantType) -> &mut Option<Box<QuadTree<T>>> {
             match quadrant_type {
                 QuadrantType::LeftBottom => &mut self.left_bottom,
                 QuadrantType::RightBottom => &mut self.right_bottom,
                 QuadrantType::LeftTop => &mut self.left_top,
                 QuadrantType::RightTop => &mut self.right_top,
+            }
+        }
+
+        fn get_subquadrant(&self, quadrant_type: &QuadrantType) -> &Option<Box<QuadTree<T>>> {
+            match quadrant_type {
+                QuadrantType::LeftBottom => &self.left_bottom,
+                QuadrantType::RightBottom => &self.right_bottom,
+                QuadrantType::LeftTop => &self.left_top,
+                QuadrantType::RightTop => &self.right_top,
             }
         }
 
